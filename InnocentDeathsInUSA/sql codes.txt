@@ -1,0 +1,115 @@
+LOAD DATA infile 'C:/ProgramData/MySQL/MySQL Server 8.0/Uploads/ER diagram Victim.csv'
+INTO TABLE victim
+FIELDS TERMINATED BY ','
+IGNORE 1 LINES
+(victim_id, first_name, @middle_name, last_Name, @age, @gender, @race)
+SET middle_name = NULLIF(@middle_name, ''), age = NULLIF(@age, ''), gender = NULLIF(@gender, ''), race = REPLACE(@race,'\r','');
+
+
+LOAD DATA infile 'C:/ProgramData/MySQL/MySQL Server 8.0/Uploads/ER diagram StringProperties.csv'
+INTO TABLE stringproperties
+FIELDS TERMINATED BY ','
+IGNORE 1 LINES;
+
+
+LOAD DATA infile 'C:/ProgramData/MySQL/MySQL Server 8.0/Uploads/ER diagram NumericProperties.csv'
+INTO TABLE numericproperties
+FIELDS TERMINATED BY ','
+IGNORE 1 LINES;
+
+
+LOAD DATA infile 'C:/ProgramData/MySQL/MySQL Server 8.0/Uploads/ER diagram StringValues.csv'
+INTO TABLE stringvalues
+FIELDS TERMINATED BY ','
+IGNORE 1 LINES
+(victim_id, string_id, @value_string)
+SET value_string = NULLIF(@value_string, '');
+
+
+LOAD DATA infile 'C:/ProgramData/MySQL/MySQL Server 8.0/Uploads/ER diagram NumericValues.csv'
+INTO TABLE numericvalues
+FIELDS TERMINATED BY ','
+IGNORE 1 LINES
+(victim_id, numeric_id, @value_numeric)
+SET value_numeric = REPLACE(@value_numeric, '\r', ''), value_numeric = NULLIF(@value_numeric, '');
+
+
+delete from numericvalues
+where value_numeric is NULL;
+
+
+delete from stringvalues
+where value_string is NULL;
+
+
+create index victim_name_asc on victim(first_name asc);
+drop index victim_name_asc ON victim;
+
+
+create view department_killcount as
+select count(v.victim_id) as killcount, value_string as department_name from victim v join stringvalues sv on (v.victim_id = sv.victim_id)
+where string_id = 7
+group by value_string
+order by killcount desc;
+
+
+create view detailed_victim_numeric_information as
+select v.victim_id, v.first_name, v.middle_name, v.last_name, v.age, v.gender, v.race, nv.value_numeric, np.numeric_type, nv.numeric_id
+from victim v join numericvalues nv on (nv.victim_id = v.victim_id) 
+join numericproperties np on (np.numeric_id = nv.numeric_id)
+ORDER BY v.victim_id;
+
+
+create view detailed_victim_string_information as
+select v.victim_id, v.first_name, v.middle_name, v.last_name, v.age, v.gender, v.race, sv.value_string, sp.string_type, sv.string_id
+from victim v join stringvalues sv on (sv.victim_id = v.victim_id) join stringproperties sp on (sp.string_id = sv.string_id)
+ORDER BY v.victim_id;
+
+
+create view victims_below_twenty as
+select * from victim
+where age < 20;
+
+
+CREATE DEFINER=`root`@`localhost` PROCEDURE `description_finder`(IN victim_id_to_find INT, INOUT victims_description TEXT)
+BEGIN
+SELECT sv.value_string INTO victims_description
+FROM victim v join stringvalues sv on (v.victim_id = sv.victim_id)
+where sv.string_id = 14 and v.victim_id = victim_id_to_find;
+END
+
+
+CREATE DEFINER=`root`@`localhost` PROCEDURE `victim_count_in_county`(IN county_name varchar(50), OUT victims INT)
+BEGIN
+select COUNT(v.victim_id) as victim_count INTO victims from victim v join stringvalues sv on (v.victim_id = sv.victim_id)
+where sv.value_string = county_name;
+END
+
+
+CREATE DEFINER=`root`@`localhost` PROCEDURE `finding_specific_victims_before_date`(IN gender TEXT, IN race TEXT, IN state varchar(2), IN deathdate varchar(10))
+BEGIN
+select v.victim_id, v.first_name, v.last_name, v.gender, v.race, sv.value_string as state, nv.value_numeric as death_date
+from victim v join stringvalues sv on (sv.victim_id = v.victim_id) 
+join stringproperties sp on (sp.string_id = sv.string_id)
+join numericvalues nv on (nv.victim_id = v.victim_id)
+join numericproperties np on (np.numeric_id = nv.numeric_id)
+where v.gender = gender and v.race = race 
+and sv.value_string = state and nv.value_numeric < deathdate and nv.numeric_id = 1;
+END
+
+
+CREATE DEFINER=`root`@`localhost` PROCEDURE `victims_living_in_specific_state`(IN state_name varchar(2))
+BEGIN
+select v.victim_id, v.first_name, v.last_name, sv.value_string from victim v join stringvalues sv on (v.victim_id = sv.victim_id)
+where sv.value_string = state_name;
+END
+
+
+CREATE DEFINER=`root`@`localhost` PROCEDURE `selecting_all`()
+BEGIN
+select * from victim v join stringvalues sv on (sv.victim_id = v.victim_id) 
+join stringproperties sp on (sp.string_id = sv.string_id)
+join numericvalues nv on (nv.victim_id = v.victim_id)
+join numericproperties np on (np.numeric_id = nv.numeric_id)
+order by v.victim_id;
+END

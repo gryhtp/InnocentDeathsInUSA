@@ -1,0 +1,5 @@
+numeric_id,numeric_type
+1,death_date
+2,death_zipcode
+3,latitude
+4,longtitude
